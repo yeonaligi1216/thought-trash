@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="생각 쓰레기통">
+<meta name="theme-color" content="#E5EAEE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10161C" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="apple-touch-icon.png">
+<title>생각 쓰레기통</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">
+<style>
+html{box-sizing:border-box;color-scheme:light}
+body{margin:0}
+[hidden]{display:none!important}
+/* 한 화면 앱: 위에 제목, 가운데 큰 쓰레기통, 통 앞에 + 버튼. 메모는 위쪽에 포스트잇 카드로 열리고, 버리면 구겨져서 통 안으로 들어간다. */
+:root{
+  --bg:#E5EAEE; --fg:#1A2430; --muted:#5E6E7C;
+  --bin:#93A7B6; --bin-shade:#7C93A5; --bin-rim:#C9D4DC; --bin-inner:#34424F;
+  --paper:#FFE88A; --paper-edge:#E0C455; --paper-ink:#3A3216;
+  --btn:#1A2430; --btn-fg:#FFFFFF; --ground:rgba(26,36,48,.16);
+  --card-shadow:rgba(26,36,48,.28); --focus:#2F6FED;
+  padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px);
+  --font-hand:'Gaegu','Nanum Pen Script','Apple SD Gothic Neo',cursive;
+  --font-ui:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161C; --fg:#E8EDF1; --muted:#93A2AF;
+    --bin:#4C5E6D; --bin-shade:#3D4E5C; --bin-rim:#71859A; --bin-inner:#080C10;
+    --paper:#F1D868; --paper-edge:#C9AE45; --paper-ink:#31290F;
+    --btn:#E8EDF1; --btn-fg:#10161C; --ground:rgba(0,0,0,.45);
+    --card-shadow:rgba(0,0,0,.6); --focus:#7FA8FF;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161C; --fg:#E8EDF1; --muted:#93A2AF;
+  --bin:#4C5E6D; --bin-shade:#3D4E5C; --bin-rim:#71859A; --bin-inner:#080C10;
+  --paper:#F1D868; --paper-edge:#C9AE45; --paper-ink:#31290F;
+  --btn:#E8EDF1; --btn-fg:#10161C; --ground:rgba(0,0,0,.45);
+  --card-shadow:rgba(0,0,0,.6); --focus:#7FA8FF;
+  color-scheme:dark;
+}
+
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+
+.app{height:100%;display:flex;flex-direction:column;align-items:center;padding-inline:16px;padding-block:18px 24px}
+.app h1{margin:0;font-family:var(--font-hand);font-weight:700;font-size:30px;letter-spacing:.02em;line-height:1.2;transition:opacity .2s}
+.app.open h1{opacity:0}
+
+.stage{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
+
+/* 통: 뒤 레이어(안쪽) → 종이 → 앞 레이어(몸통) 순서로 겹쳐서 종이가 입구로 들어가 보이게 한다 */
+.bin{position:relative;isolation:isolate;width:min(76vw,320px,46dvh);aspect-ratio:240/300}
+.layer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:50% 100%}
+.layer.back{z-index:1}
+.layer.front{z-index:3}
+.c-rim{fill:var(--bin-rim)}
+.c-inner{fill:var(--bin-inner)}
+.c-body{fill:var(--bin)}
+.c-ground{fill:var(--ground)}
+.c-rib{stroke:var(--bin-shade);stroke-width:6;stroke-linecap:round;fill:none;opacity:.7}
+.c-lip{stroke:var(--bin-rim);stroke-width:5;stroke-linecap:round;fill:none}
+.ball-body{fill:var(--paper);stroke:var(--paper-edge);stroke-width:1.5}
+.ball-line{fill:none;stroke:var(--paper-edge);stroke-width:1.4;stroke-linecap:round}
+
+.fab{position:absolute;z-index:4;left:50%;top:59%;width:76px;height:76px;margin:0;padding:0;border:0;border-radius:50%;
+  display:grid;place-items:center;background:var(--btn);color:var(--btn-fg);cursor:pointer;touch-action:manipulation;
+  transform:translate(-50%,-50%);box-shadow:0 0 0 6px var(--bin-rim),0 12px 24px var(--card-shadow);
+  transition:transform .15s ease}
+.fab:active{transform:translate(-50%,-50%) scale(.94)}
+.fab svg{width:34px;height:34px;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.fab.is-open svg{transform:rotate(45deg)}
+.fab:disabled{cursor:default}
+
+.status{margin:0;font-size:18px;line-height:1.4;text-align:center;text-wrap:balance}
+.tally{margin:-12px 0 0;min-height:1.4em;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* 메모 카드 */
+.card{position:fixed;z-index:10;left:0;right:0;margin-inline:auto;width:min(calc(100% - 32px),420px);
+  top:calc(var(--vvt,0px) + env(safe-area-inset-top,0px) + 12px);
+  height:min(360px,calc(var(--vvh,100dvh) - env(safe-area-inset-top,0px) - 24px));
+  display:flex;flex-direction:column;gap:10px;padding:16px 16px 14px;
+  background:var(--paper);color:var(--paper-ink);border-radius:14px;
+  box-shadow:0 18px 40px var(--card-shadow);
+  opacity:0;pointer-events:none;transform:translateY(-14px) rotate(-1.2deg) scale(.97);
+  transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1)}
+.card.open{opacity:1;pointer-events:auto;transform:rotate(-.6deg)}
+.card.snap{transition:none}
+.note{flex:1;min-height:0;width:100%;margin:0;padding:0;border:0;outline:0;resize:none;background:transparent;
+  color:var(--paper-ink);caret-color:var(--paper-ink);font-family:var(--font-hand);font-size:24px;line-height:1.45}
+.note::placeholder{color:var(--paper-ink);opacity:.45}
+.card-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px}
+.card-foot small{font-size:13px;opacity:.7}
+.toss{min-height:46px;padding:0 24px;border:0;border-radius:23px;background:var(--btn);color:var(--btn-fg);
+  font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation;transition:opacity .15s,transform .15s}
+.toss:active{transform:scale(.96)}
+.toss:disabled{opacity:.3;cursor:default}
+
+/* 날아가는 종이 */
+.paper{position:fixed;z-index:2;background:var(--paper);border-radius:14px;overflow:hidden;pointer-events:none;will-change:transform}
+.paper .txt{display:block;padding:16px;font-family:var(--font-hand);font-size:24px;line-height:1.45;color:var(--paper-ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.paper .skin{position:absolute;inset:0;border-radius:inherit;opacity:0;
+  background:
+    radial-gradient(circle at 30% 26%,rgba(255,255,255,.6),transparent 38%),
+    radial-gradient(circle at 72% 78%,rgba(60,40,0,.22),transparent 55%),
+    conic-gradient(from 20deg at 50% 50%,transparent 0 18%,rgba(60,40,0,.14) 18% 20%,transparent 20% 52%,rgba(60,40,0,.14) 52% 54%,transparent 54% 80%,rgba(60,40,0,.12) 80% 82%,transparent 82%)}
+
+@media (prefers-reduced-motion: reduce){
+  .card,.fab,.fab svg,.toss{transition:none}
+}
+</style>
+</head>
+<body>
+
+<main class="app" id="app">
+  <h1>생각 쓰레기통</h1>
+
+  <section class="stage">
+    <div class="bin" id="bin">
+      <svg class="layer back" viewBox="0 0 240 300" aria-hidden="true">
+        <ellipse class="c-rim" cx="120" cy="70" rx="98" ry="18"/>
+        <ellipse class="c-inner" id="mouth" cx="120" cy="69" rx="88" ry="13"/>
+        <g id="pile"></g>
+      </svg>
+
+      <svg class="layer front" viewBox="0 0 240 300" aria-hidden="true">
+        <ellipse class="c-ground" cx="120" cy="293" rx="94" ry="7"/>
+        <path class="c-body" d="M26 70 A94 16 0 0 0 214 70 L194 276 Q193 288 181 288 L59 288 Q47 288 46 276 Z"/>
+        <path class="c-rib" d="M62 100 L68 272"/>
+        <path class="c-rib" d="M91 104 L94 274"/>
+        <path class="c-rib" d="M120 106 L120 274"/>
+        <path class="c-rib" d="M149 104 L146 274"/>
+        <path class="c-rib" d="M178 100 L172 272"/>
+        <path class="c-lip" d="M26 70 A94 16 0 0 0 214 70"/>
+      </svg>
+
+      <button class="fab" id="fab" type="button" aria-label="메모 열기" aria-expanded="false" aria-controls="card">
+        <svg viewBox="0 0 34 34" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M17 6v22M6 17h22"/>
+        </svg>
+      </button>
+    </div>
+
+    <p class="status" id="status" aria-live="polite">머릿속 생각을 적고 버려보세요.</p>
+    <p class="tally" id="tally"></p>
+  </section>
+</main>
+
+<div class="card" id="card" role="dialog" aria-label="메모" inert>
+  <textarea class="note" id="note" maxlength="1000" placeholder="아무 말이나 적어보세요" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter"></textarea>
+  <div class="card-foot">
+    <small>버리면 다시 볼 수 없어요</small>
+    <button class="toss" id="toss" type="button" disabled>버리기</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var NS = 'http://www.w3.org/2000/svg';
+  var KEY = 'thought-trash-count';
+  var $ = function(s){ return document.querySelector(s); };
+  var root = document.documentElement;
+  var app = $('#app'), card = $('#card'), note = $('#note'), tossBtn = $('#toss'), fab = $('#fab');
+  var status = $('#status'), tally = $('#tally'), bin = $('#bin'), pile = $('#pile'), mouth = $('#mouth');
+  var layers = bin.querySelectorAll('.layer');
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // 통 안에 쌓이는 종이 뭉치 위치 [x, y, 반지름]
+  var POS = [[100,64,12],[140,62,11],[120,58,12],[76,68,11],[164,66,11],[112,73,11],
+             [138,72,10],[88,56,10],[152,55,10],[62,63,9],[178,62,9],[122,48,10]];
+  var MSG = ['버렸어요. 이제 잊어도 돼요.', '쓰레기통에 들어갔어요.', '한결 가벼워졌어요.'];
+
+  var count = 0, busy = false, isOpen = false;
+  try { count = Math.max(0, parseInt(localStorage.getItem(KEY) || '0', 10) || 0); } catch (e) {}
+
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function save(){ try { localStorage.setItem(KEY, String(count)); } catch (e) {} }
+  function renderTally(){ tally.textContent = count > 0 ? '버린 생각 ' + count + '개' : ''; }
+
+  // 키보드가 올라와도 카드가 보이는 영역 안에 있도록
+  function fit(){
+    var v = window.visualViewport; if (!v) return;
+    root.style.setProperty('--vvh', v.height + 'px');
+    root.style.setProperty('--vvt', v.offsetTop + 'px');
+  }
+  if (window.visualViewport){
+    visualViewport.addEventListener('resize', fit);
+    visualViewport.addEventListener('scroll', fit);
+  }
+  fit();
+
+  function mk(tag, attrs){
+    var el = document.createElementNS(NS, tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function addBall(i, shown){
+    var p = POS[i], r = p[2];
+    var g = mk('g', { transform: 'translate(' + p[0] + ' ' + p[1] + ')' });
+    g.style.opacity = shown ? '1' : '0';
+    g.appendChild(mk('circle', { r: r, 'class': 'ball-body' }));
+    g.appendChild(mk('path', { 'class': 'ball-line', d: 'M' + (-r*.55) + ' ' + (-r*.1) + ' Q' + (-r*.1) + ' ' + (-r*.55) + ' ' + (r*.5) + ' ' + (-r*.2) }));
+    g.appendChild(mk('path', { 'class': 'ball-line', d: 'M' + (-r*.4) + ' ' + (r*.35) + ' Q' + (r*.1) + ' ' + (r*.05) + ' ' + (r*.55) + ' ' + (r*.4) }));
+    pile.appendChild(g);
+    return g;
+  }
+  for (var i = 0; i < Math.min(count, POS.length); i++) addBall(i, true);
+  renderTally();
+
+  function openCard(){
+    if (busy || isOpen) return;
+    isOpen = true;
+    card.inert = false;
+    card.classList.add('open');
+    fab.classList.add('is-open');
+    fab.setAttribute('aria-label', '메모 닫기');
+    fab.setAttribute('aria-expanded', 'true');
+    app.classList.add('open');
+    note.focus({ preventScroll: true });
+  }
+  function closeCard(){
+    if (!isOpen) return;
+    isOpen = false;
+    note.blur();
+    card.classList.remove('open');
+    card.inert = true;
+    fab.classList.remove('is-open');
+    fab.setAttribute('aria-label', '메모 열기');
+    fab.setAttribute('aria-expanded', 'false');
+    app.classList.remove('open');
+  }
+
+  fab.addEventListener('click', function(){ if (busy) return; isOpen ? closeCard() : openCard(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !busy) closeCard(); });
+  note.addEventListener('input', function(){ tossBtn.disabled = !note.value.trim(); });
+
+  function bounce(){
+    if (reduce) return;
+    for (var i = 0; i < layers.length; i++){
+      layers[i].animate(
+        [{ transform: 'none' }, { transform: 'translateY(5px) scale(1.025,.975)' }, { transform: 'none' }],
+        { duration: 340, easing: 'ease-out' }
+      );
+    }
+  }
+
+  async function toss(){
+    var text = note.value.trim();
+    if (!text || busy) return;
+    busy = true;
+    tossBtn.disabled = true;
+    fab.disabled = true;
+
+    // 키보드를 내리고 화면이 자리 잡을 때까지 잠깐 기다린다
+    var v = window.visualViewport;
+    var kb = v && (window.innerHeight - v.height > 100);
+    note.blur();
+    if (kb) await wait(340);
+    fit();
+
+    var r = card.getBoundingClientRect();
+    var idx = count;
+    var ball = idx < POS.length ? addBall(idx, false) : null;
+    var tr = (ball || mouth).getBoundingClientRect();
+    var tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+    var dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2);
+
+    var paper = document.createElement('div');
+    paper.className = 'paper';
+    paper.style.left = r.left + 'px';
+    paper.style.top = r.top + 'px';
+    paper.style.width = r.width + 'px';
+    paper.style.height = r.height + 'px';
+    paper.innerHTML = '<span class="txt"></span><span class="skin"></span>';
+    paper.firstChild.textContent = text;
+    bin.appendChild(paper);
+
+    // 카드는 바로 사라지고, 같은 자리의 종이가 구겨져 날아간다
+    card.classList.add('snap');
+    closeCard();
+    note.value = '';
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ card.classList.remove('snap'); }); });
+
+    try {
+      var flight;
+      if (reduce){
+        flight = paper.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' });
+      } else {
+        paper.querySelector('.txt').animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards', easing: 'ease-in' });
+        paper.querySelector('.skin').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, fill: 'forwards' });
+        flight = paper.animate([
+          { transform: 'translate(0,0) scale(1) rotate(0deg)', borderRadius: '14px', offset: 0, easing: 'cubic-bezier(.5,0,.7,.7)' },
+          { transform: 'translate(0,8px) scale(.2) rotate(-24deg)', borderRadius: '50%', offset: .32, easing: 'cubic-bezier(.3,0,.5,1)' },
+          { transform: 'translate(' + (dx * .5) + 'px,' + (dy * .2 - 80) + 'px) scale(.15) rotate(-210deg)', borderRadius: '50%', offset: .66, easing: 'cubic-bezier(.5,0,.9,.6)' },
+          { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.085) rotate(-400deg)', borderRadius: '50%', offset: 1 }
+        ], { duration: 1150, fill: 'forwards' });
+      }
+      await flight.finished;
+    } catch (e) {}
+
+    if (ball) ball.style.opacity = '1';
+    paper.remove();
+    bounce();
+
+    status.textContent = MSG[count % MSG.length];
+    count += 1;
+    save();
+    renderTally();
+    fab.disabled = false;
+    busy = false;
+  }
+  tossBtn.addEventListener('click', toss);
+})();
+</script>
+</body>
+</html>
